@@ -56,10 +56,11 @@ namespace ServiceStack.Text.Common
         /// <returns></returns>
         public static DateTime Prepare(this DateTime dateTime, bool parsedAsUtc = false)
         {
-            if (JsConfig.SkipDateTimeConversion)
+            var config = JsConfig.GetConfig();
+            if (config.SkipDateTimeConversion)
                 return dateTime;
 
-            if (JsConfig.AlwaysUseUtc)
+            if (config.AlwaysUseUtc)
                 return dateTime.Kind != DateTimeKind.Utc ? dateTime.ToStableUniversalTime() : dateTime;
 
             return parsedAsUtc ? dateTime.ToLocalTime() : dateTime;
@@ -88,11 +89,12 @@ namespace ServiceStack.Text.Common
                 if (dateTimeStr.StartsWith(EscapedWcfJsonPrefix, StringComparison.Ordinal) || dateTimeStr.StartsWith(WcfJsonPrefix, StringComparison.Ordinal))
                     return ParseWcfJsonDate(dateTimeStr).Prepare();
 
+                var config = JsConfig.GetConfig();
                 if (dateTimeStr.Length == DefaultDateTimeFormat.Length)
                 {
                     var unspecifiedDate = DateTime.Parse(dateTimeStr, CultureInfo.InvariantCulture);
 
-                    if (JsConfig.AssumeUtc)
+                    if (config.AssumeUtc)
                         unspecifiedDate = DateTime.SpecifyKind(unspecifiedDate, DateTimeKind.Utc);
 
                     return unspecifiedDate.Prepare();
@@ -100,7 +102,7 @@ namespace ServiceStack.Text.Common
 
                 if (dateTimeStr.Length == DefaultDateTimeFormatWithFraction.Length)
                 {
-                    var unspecifiedDate = JsConfig.AssumeUtc
+                    var unspecifiedDate = config.AssumeUtc
                         ? DateTime.Parse(dateTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal)
                         : DateTime.Parse(dateTimeStr, CultureInfo.InvariantCulture);
 
@@ -108,7 +110,7 @@ namespace ServiceStack.Text.Common
                 }
 
                 var kind = DateTimeKind.Unspecified;
-                switch (JsConfig.DateHandler)
+                switch (config.DateHandler)
                 {
                     case DateHandler.UnixTime:
                         if (int.TryParse(dateTimeStr, out var unixTime))
@@ -121,7 +123,7 @@ namespace ServiceStack.Text.Common
                     case DateHandler.ISO8601:
                     case DateHandler.ISO8601DateOnly:
                     case DateHandler.ISO8601DateTime:
-                        if (JsConfig.SkipDateTimeConversion)
+                        if (config.SkipDateTimeConversion)
                             dateTimeStr = RemoveUtcOffsets(dateTimeStr, out kind);
                         break;
                 }
@@ -160,7 +162,7 @@ namespace ServiceStack.Text.Common
 
                 try
                 {
-                    if (JsConfig.SkipDateTimeConversion)
+                    if (config.SkipDateTimeConversion)
                     {
                         return DateTime.Parse(dateTimeStr, null,
                             kind == DateTimeKind.Unspecified
@@ -170,7 +172,7 @@ namespace ServiceStack.Text.Common
                                     : DateTimeStyles.AssumeUniversal);
                     }
 
-                    var assumeKind = JsConfig.AssumeUtc ? DateTimeStyles.AssumeUniversal : DateTimeStyles.AssumeLocal;
+                    var assumeKind = config.AssumeUtc ? DateTimeStyles.AssumeUniversal : DateTimeStyles.AssumeLocal;
                     var dateTime = DateTime.Parse(dateTimeStr, CultureInfo.InvariantCulture, assumeKind);
                     return dateTime.Prepare();
                 }
@@ -223,7 +225,8 @@ namespace ServiceStack.Text.Common
 
         public static DateTime? ParseManual(string dateTimeStr)
         {
-            var dateKind = JsConfig.AssumeUtc || JsConfig.AlwaysUseUtc
+            var config = JsConfig.GetConfig();
+            var dateKind = config.AssumeUtc || config.AlwaysUseUtc
                 ? DateTimeKind.Utc
                 : DateTimeKind.Local;
 
@@ -440,21 +443,23 @@ namespace ServiceStack.Text.Common
 
         public static string ToShortestXsdDateTimeString(DateTime dateTime)
         {
+            var config = JsConfig.GetConfig();
+
             dateTime = dateTime.UseConfigSpecifiedSetting();
-            if (!string.IsNullOrEmpty(JsConfig.DateTimeFormat))
+            if (!string.IsNullOrEmpty(config.DateTimeFormat))
             {
-                return dateTime.ToString(JsConfig.DateTimeFormat, CultureInfo.InvariantCulture);
+                return dateTime.ToString(config.DateTimeFormat, CultureInfo.InvariantCulture);
             }
 
             var timeOfDay = dateTime.TimeOfDay;
             var isStartOfDay = timeOfDay.Ticks == 0;
-            if (isStartOfDay && !JsConfig.SkipDateTimeConversion)
+            if (isStartOfDay && !config.SkipDateTimeConversion)
                 return dateTime.ToString(ShortDateTimeFormat, CultureInfo.InvariantCulture);
 
             var hasFractionalSecs = (timeOfDay.Milliseconds != 0)
                 || (timeOfDay.Ticks % TimeSpan.TicksPerMillisecond != 0);
 
-            if (JsConfig.SkipDateTimeConversion)
+            if (config.SkipDateTimeConversion)
             {
                 if (!hasFractionalSecs)
                     return dateTime.Kind == DateTimeKind.Local
@@ -596,8 +601,10 @@ namespace ServiceStack.Text.Common
 
         public static void WriteWcfJsonDate(TextWriter writer, DateTime dateTime)
         {
+            var config = JsConfig.GetConfig();
+            
             dateTime = dateTime.UseConfigSpecifiedSetting();
-            switch (JsConfig.DateHandler)
+            switch (config.DateHandler)
             {
                 case DateHandler.ISO8601:
                     writer.Write(dateTime.ToString("o", CultureInfo.InvariantCulture));
@@ -617,7 +624,7 @@ namespace ServiceStack.Text.Common
             string offset = null;
             if (dateTime.Kind != DateTimeKind.Utc)
             {
-                if (JsConfig.DateHandler == DateHandler.TimestampOffset && dateTime.Kind == DateTimeKind.Unspecified)
+                if (config.DateHandler == DateHandler.TimestampOffset && dateTime.Kind == DateTimeKind.Unspecified)
                     offset = UnspecifiedOffset;
                 else
                     offset = LocalTimeZone.GetUtcOffset(dateTime).ToTimeOffsetString();
@@ -625,8 +632,8 @@ namespace ServiceStack.Text.Common
             else
             {
                 // Normally the JsonDateHandler.TimestampOffset doesn't append an offset for Utc dates, but if
-                // the JsConfig.AppendUtcOffset is set then we will
-                if (JsConfig.DateHandler == DateHandler.TimestampOffset && JsConfig.AppendUtcOffset.HasValue && JsConfig.AppendUtcOffset.Value)
+                // the config.AppendUtcOffset is set then we will
+                if (config.DateHandler == DateHandler.TimestampOffset && config.AppendUtcOffset)
                     offset = UtcOffset;
             }
 

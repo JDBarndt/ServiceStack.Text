@@ -73,9 +73,11 @@ namespace ServiceStack.Text.Common
         {
             if (ShouldSkipType()) return false;
 
-            Serializer.WriteRawString(writer, JsConfig.TypeAttr);
+            var config = JsConfig.GetConfig();
+
+            Serializer.WriteRawString(writer, config.TypeAttr);
             writer.Write(JsWriter.MapKeySeperator);
-            Serializer.WriteRawString(writer, JsConfig.TypeWriter(typeof(T)));
+            Serializer.WriteRawString(writer, config.TypeWriter(typeof(T)));
             return true;
         }
 
@@ -83,16 +85,15 @@ namespace ServiceStack.Text.Common
         {
             if (obj == null || ShouldSkipType()) return false;
 
-            Serializer.WriteRawString(writer, JsConfig.TypeAttr);
+            var config = JsConfig.GetConfig();
+
+            Serializer.WriteRawString(writer, config.TypeAttr);
             writer.Write(JsWriter.MapKeySeperator);
-            Serializer.WriteRawString(writer, JsConfig.TypeWriter(obj.GetType()));
+            Serializer.WriteRawString(writer, config.TypeWriter(obj.GetType()));
             return true;
         }
 
-        public static WriteObjectDelegate Write
-        {
-            get { return CacheFn; }
-        }
+        public static WriteObjectDelegate Write => CacheFn;
 
         private static WriteObjectDelegate GetWriteFn()
         {
@@ -257,7 +258,7 @@ namespace ServiceStack.Text.Common
 
         internal struct TypePropertyWriter
         {
-            internal string GetPropertyName(PropertyConfigs config)
+            internal string GetPropertyName(Config config)
             {
                 return config.EmitCamelCaseNames
                     ? propertyNameCLSFriendly
@@ -304,7 +305,7 @@ namespace ServiceStack.Text.Common
                 this.isEnum = isEnum;
             }
 
-            public bool ShouldWriteProperty(object propertyValue, PropertyConfigs config)
+            public bool ShouldWriteProperty(object propertyValue, Config config)
             {
                 var isDefaultValue = propertyValue == null || Equals(DefaultValue, propertyValue);
                 if (isDefaultValue)
@@ -393,7 +394,7 @@ namespace ServiceStack.Text.Common
 
             if (PropertyWriters != null)
             {
-                var config = JsConfig<T>.GetPropertyConfigs();
+                var config = JsConfig<T>.GetConfig();
 
                 var typedInstance = (T)instance;
                 var len = PropertyWriters.Length;
@@ -466,7 +467,7 @@ namespace ServiceStack.Text.Common
             if (!JsConfig<T>.ExcludeTypeInfo.GetValueOrDefault()) JsState.IsWritingDynamic = false;
         }
 
-        internal static string GetPropertyName(string propertyName, PropertyConfigs config)
+        internal static string GetPropertyName(string propertyName, Config config)
         {
             return config.EmitCamelCaseNames
                 ? propertyName.ToCamelCase()
@@ -482,14 +483,15 @@ namespace ServiceStack.Text.Common
             var i = 0;
             if (PropertyWriters != null)
             {
-                var config = JsConfig<T>.GetPropertyConfigs();
+                var config = JsConfig<T>.GetConfig();
 
                 var typedInstance = (T)instance;
                 var len = PropertyWriters.Length;
                 for (var index = 0; index < len; index++)
                 {
                     var propertyWriter = PropertyWriters[index];
-                    if (propertyWriter.shouldSerialize != null && !propertyWriter.shouldSerialize(typedInstance)) continue;
+                    if (propertyWriter.shouldSerialize != null && !propertyWriter.shouldSerialize(typedInstance)) 
+                        continue;
 
                     var propertyValue = instance != null ? propertyWriter.GetterFn(typedInstance) : null;
                     if (propertyWriter.propertySuppressDefaultAttribute && Equals(propertyWriter.DefaultValue, propertyValue))
@@ -500,8 +502,8 @@ namespace ServiceStack.Text.Common
                         && !Serializer.IncludeNullValues)
                         continue;
 
-                    if (JsConfig.ExcludePropertyReferences != null
-                        && JsConfig.ExcludePropertyReferences.Contains(propertyWriter.propertyReferenceName)) continue;
+                    if (config.ExcludePropertyReferences != null && config.ExcludePropertyReferences.Contains(propertyWriter.propertyReferenceName)) 
+                        continue;
 
                     if (i++ > 0)
                         writer.Write('&');
@@ -564,7 +566,7 @@ namespace ServiceStack.Text.Common
             try
             {
                 JsState.QueryStringMode = true;
-                var config = JsConfig<T>.GetPropertyConfigs();
+                var config = JsConfig<T>.GetConfig();
 
                 var i = 0;
                 var typedInstance = (T)instance;

@@ -131,6 +131,36 @@ namespace ServiceStack
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasAttribute<T>(this MethodInfo mi) => mi.AllAttributes().Any(x => x.GetType() == typeof(T));
 
+        private static Dictionary<MemberInfo, bool> hasAttributeCache = new Dictionary<MemberInfo, bool>();
+        public static bool HasAttributeCached<T>(this MemberInfo memberInfo)
+        {
+            if (hasAttributeCache.TryGetValue(memberInfo, out var hasAttr))
+                return hasAttr;
+
+            hasAttr = memberInfo is Type t 
+                ? t.AllAttributes().Any(x => x.GetType() == typeof(T))
+                : memberInfo is PropertyInfo pi
+                ? pi.AllAttributes().Any(x => x.GetType() == typeof(T))
+                : memberInfo is FieldInfo fi
+                ? fi.AllAttributes().Any(x => x.GetType() == typeof(T))
+                : memberInfo is MethodInfo mi
+                ? mi.AllAttributes().Any(x => x.GetType() == typeof(T))
+                : throw new NotSupportedException(memberInfo.GetType().Name);
+            
+            Dictionary<MemberInfo, bool> snapshot, newCache;
+            do
+            {
+                snapshot = hasAttributeCache;
+                newCache = new Dictionary<MemberInfo, bool>(hasAttributeCache) {
+                    [memberInfo] = hasAttr
+                };
+
+            } while (!ReferenceEquals(
+                Interlocked.CompareExchange(ref hasAttributeCache, newCache, snapshot), snapshot));
+
+            return hasAttr;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasAttributeNamed(this Type type, string name)
         {
@@ -556,8 +586,9 @@ namespace ServiceStack
             do
             {
                 snapshot = GenericTypeCache;
-                newCache = new Dictionary<string, Type>(GenericTypeCache);
-                newCache[key] = genericType;
+                newCache = new Dictionary<string, Type>(GenericTypeCache) {
+                    [key] = genericType
+                };
 
             } while (!ReferenceEquals(
                 Interlocked.CompareExchange(ref GenericTypeCache, newCache, snapshot), snapshot));
@@ -665,9 +696,9 @@ namespace ServiceStack
             if (values == null)
                 return null;
             
-            var alreadyDict = type == typeof(IReadOnlyDictionary<string, object>);
+            var alreadyDict = typeof(IReadOnlyDictionary<string, object>).IsAssignableFrom(type);
             if (alreadyDict)
-                return true;
+                return values;
 
             var to = type.CreateInstance();
 
@@ -789,6 +820,27 @@ namespace ServiceStack
             {
                 to[entry.Key] = entry.Value;
             }
+            return to;
+        }
+
+        public static Dictionary<string, string> ToStringDictionary(this IReadOnlyDictionary<string, object> from) => ToStringDictionary(from, null);
+
+        public static Dictionary<string, string> ToStringDictionary(this IReadOnlyDictionary<string, object> from, IEqualityComparer<string> comparer)
+        {
+            var to = comparer != null
+                ? new Dictionary<string, string>(comparer)
+                : new Dictionary<string, string>();
+
+            if (from != null)
+            {
+                foreach (var entry in from)
+                {
+                    to[entry.Key] = entry.Value is string s
+                        ? s
+                        : entry.Value.ConvertTo<string>();
+                }
+            }
+
             return to;
         }
     }

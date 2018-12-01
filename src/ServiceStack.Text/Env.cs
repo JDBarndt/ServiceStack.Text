@@ -136,7 +136,12 @@ namespace ServiceStack.Text
 
         public static bool SupportsDynamic { get; private set; }
 
-        public static bool StrictMode { get; set; }
+        private static bool strictMode;
+        public static bool StrictMode
+        {
+            get => strictMode;
+            set => Config.Instance.ThrowOnError = strictMode = value;
+        }
 
         public static string ServerUserAgent { get; set; }
 
@@ -148,23 +153,27 @@ namespace ServiceStack.Text
             return __releaseDate;
         }
 
-        private static string referenceAssembyPath;
-        public static string ReferenceAssembyPath
+        [Obsolete("Use ReferenceAssemblyPath")]
+        public static string ReferenceAssembyPath => ReferenceAssemblyPath; 
+        
+        private static string referenceAssemblyPath;
+
+        public static string ReferenceAssemblyPath
         {
             get
             {
-                if (!IsMono && referenceAssembyPath == null)
+                if (!IsMono && referenceAssemblyPath == null)
                 {
                     var programFilesPath = PclExport.Instance.GetEnvironmentVariable("ProgramFiles(x86)") ?? @"C:\Program Files (x86)";
                     var netFxReferenceBasePath = programFilesPath + @"\Reference Assemblies\Microsoft\Framework\.NETFramework\";
                     if ((netFxReferenceBasePath + @"v4.5.2\").DirectoryExists())
-                        referenceAssembyPath = netFxReferenceBasePath + @"v4.5.2\";
+                        referenceAssemblyPath = netFxReferenceBasePath + @"v4.5.2\";
                     else if ((netFxReferenceBasePath + @"v4.5.1\").DirectoryExists())
-                        referenceAssembyPath = netFxReferenceBasePath + @"v4.5.1\";
+                        referenceAssemblyPath = netFxReferenceBasePath + @"v4.5.1\";
                     else if ((netFxReferenceBasePath + @"v4.5\").DirectoryExists())
-                        referenceAssembyPath = netFxReferenceBasePath + @"v4.5\";
+                        referenceAssemblyPath = netFxReferenceBasePath + @"v4.5\";
                     else if ((netFxReferenceBasePath + @"v4.0\").DirectoryExists())
-                        referenceAssembyPath = netFxReferenceBasePath + @"v4.0\";
+                        referenceAssemblyPath = netFxReferenceBasePath + @"v4.0\";
                     else
                     {
                         var v4Dirs = PclExport.Instance.GetDirectoryNames(netFxReferenceBasePath, "v4*");
@@ -176,7 +185,7 @@ namespace ServiceStack.Text
                         }
                         if (v4Dirs.Length > 0)
                         {
-                            referenceAssembyPath = v4Dirs[v4Dirs.Length - 1] + @"\"; //latest v4
+                            referenceAssemblyPath = v4Dirs[v4Dirs.Length - 1] + @"\"; //latest v4
                         }
                         else
                         {
@@ -186,9 +195,9 @@ namespace ServiceStack.Text
                         }
                     }
                 }
-                return referenceAssembyPath;
+                return referenceAssemblyPath;
             }
-            set => referenceAssembyPath = value;
+            set => referenceAssemblyPath = value;
         }
 
 #if NETSTANDARD2_0
